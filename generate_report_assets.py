@@ -24,7 +24,15 @@ def load_data() -> tuple[pd.DataFrame, str]:
     df["directa"] = df["metodo_simple"].astype(str).str.contains("direct", case=False, na=False)
     df["fecha_proceso"] = pd.to_datetime(df["fecha_proceso"], errors="coerce")
     df["mes_dt"] = df["fecha_proceso"].dt.to_period("M").dt.to_timestamp()
+    mes_num = df["fecha_proceso"].dt.month.fillna(1).astype(int).astype(str).str.zfill(2)
+    df["mes_reporte"] = pd.to_datetime(df[col_anio].astype(int).astype(str) + "-" + mes_num + "-01", errors="coerce")
     return df, col_anio
+
+
+def es_valor_visible(serie: pd.Series) -> pd.Series:
+    """Excluye etiquetas de relleno que no deben mostrarse en la entrega final."""
+    textos_invalidos = {"sin dato", "no especificado", "nan", ""}
+    return ~serie.astype(str).str.strip().str.lower().isin(textos_invalidos)
 
 
 def save_current(fig_name: str, title: str, section: str, columns_used: str, description: str, meta: list[dict]) -> None:
@@ -60,7 +68,7 @@ def flow_diagram(path: Path, title: str, boxes: dict, arrows: list[tuple[str, st
             facecolor="white",
         )
         ax.add_patch(rect)
-        ax.text(x + w / 2, y + h / 2, text, ha="center", va="center", fontsize=10, wrap=True)
+        ax.text(x + w / 2, y + h / 2, text, ha="center", va="center", fontsize=9, wrap=True)
     for a, b in arrows:
         x1, y1, w1, h1, _ = boxes[a]
         x2, y2, w2, h2, _ = boxes[b]
@@ -96,7 +104,11 @@ def main() -> None:
     save_current("grafico_02", "Cantidad de procesos por año", "Resumen General", "ocid, año", "Compara la magnitud de procesos registrados en cada año.", meta)
 
     plt.figure(figsize=(6.5, 6.5))
-    g3 = df.groupby("metodo_simple", as_index=False).agg(procesos=("ocid", "nunique"))
+    g3 = (
+        df[es_valor_visible(df["metodo_simple"])]
+        .groupby("metodo_simple", as_index=False)
+        .agg(procesos=("ocid", "nunique"))
+    )
     plt.pie(g3["procesos"], labels=g3["metodo_simple"], autopct="%1.1f%%", startangle=90)
     plt.title("Gráfico 3. Participación de procesos por método")
     save_current("grafico_03", "Participación de procesos por método", "Resumen General", "metodo_simple, ocid", "Muestra la composición relativa de las modalidades de contratación.", meta)
@@ -110,9 +122,9 @@ def main() -> None:
     save_current("grafico_04", "Monto adjudicado por año y categoría", "Resumen General", "año, categoria, monto_MM", "Permite observar la variación del gasto por categoría en cada período.", meta)
 
     plt.figure(figsize=(8, 5))
-    plt.hist(df["n_postores"], bins=20, color="#ED7D31", edgecolor="black")
+    plt.hist(df.loc[df["n_postores"] > 0, "n_postores"].clip(upper=10), bins=10, color="#ED7D31", edgecolor="black")
     plt.title("Gráfico 5. Distribución del número de postores")
-    plt.xlabel("Número de postores")
+    plt.xlabel("Número de postores (10 representa 10 o más)")
     plt.ylabel("Frecuencia")
     save_current("grafico_05", "Distribución del número de postores", "Competencia", "n_postores", "Describe el comportamiento general de la concurrencia en los procesos.", meta)
 
@@ -125,7 +137,7 @@ def main() -> None:
 
     plt.figure(figsize=(8, 6))
     g7 = (
-        df[df["un_solo_postor"]]
+        df[df["un_solo_postor"] & es_valor_visible(df["departamento"])]
         .groupby("departamento", as_index=False)
         .agg(procesos=("ocid", "nunique"))
         .sort_values("procesos", ascending=False)
@@ -164,7 +176,11 @@ def main() -> None:
     save_current("grafico_09", "Monto en riesgo frente a monto competitivo por año", "Riesgo Económico", "año, monto_adjudicado, un_solo_postor", "Separa la exposición económica según el nivel de competencia observado.", meta)
 
     plt.figure(figsize=(8, 5))
-    g10 = df.groupby([col_anio, "categoria"], as_index=False).agg(monto_MM=("monto_MM", "sum"))
+    g10 = (
+        df[es_valor_visible(df["categoria"])]
+        .groupby([col_anio, "categoria"], as_index=False)
+        .agg(monto_MM=("monto_MM", "sum"))
+    )
     sns.lineplot(data=g10, x=col_anio, y="monto_MM", hue="categoria", marker="o")
     plt.title("Gráfico 10. Evolución anual del gasto por categoría")
     plt.xlabel("Año")
@@ -198,7 +214,8 @@ def main() -> None:
 
     plt.figure(figsize=(10, 8))
     g13 = (
-        df.groupby(["departamento", "categoria"])["un_solo_postor"]
+        df[es_valor_visible(df["departamento"]) & es_valor_visible(df["categoria"])]
+        .groupby(["departamento", "categoria"])["un_solo_postor"]
         .mean()
         .mul(100)
         .reset_index()
@@ -212,8 +229,12 @@ def main() -> None:
     save_current("grafico_13", "Riesgo por departamento y categoría (%)", "Transparencia Geográfica", "departamento, categoria, un_solo_postor", "Resume el porcentaje de procesos con un solo postor según territorio y categoría.", meta)
 
     plt.figure(figsize=(10, 5))
-    g14 = df.dropna(subset=["mes_dt"]).groupby(["mes_dt", "directa"], as_index=False).agg(procesos=("ocid", "nunique"))
-    sns.lineplot(data=g14, x="mes_dt", y="procesos", hue="directa", marker="o")
+    g14 = (
+        df[df["metodo_simple"].isin(["Competitivo", "Directa"]) & df["mes_reporte"].notna()]
+        .groupby(["mes_reporte", "metodo_simple"], as_index=False)
+        .agg(procesos=("ocid", "nunique"))
+    )
+    sns.lineplot(data=g14, x="mes_reporte", y="procesos", hue="metodo_simple", marker="o")
     plt.title("Gráfico 14. Evolución mensual de directas frente a competitivas")
     plt.xlabel("Mes")
     plt.ylabel("Procesos")
@@ -221,7 +242,8 @@ def main() -> None:
 
     plt.figure(figsize=(8, 6))
     (
-        df.groupby("proveedor_ganador", as_index=True)["ocid"]
+        df[es_valor_visible(df["proveedor_ganador"])]
+        .groupby("proveedor_ganador", as_index=True)["ocid"]
         .nunique()
         .sort_values(ascending=False)
         .head(15)
@@ -234,7 +256,7 @@ def main() -> None:
     save_current("grafico_15", "Top 15 proveedores ganadores repetidos", "Transparencia Geográfica", "proveedor_ganador, ocid", "Muestra la concentración de adjudicaciones en un grupo reducido de proveedores.", meta)
 
     plt.figure(figsize=(8, 6))
-    g16 = df.groupby("departamento", as_index=False).agg(
+    g16 = df[es_valor_visible(df["departamento"])].groupby("departamento", as_index=False).agg(
         pct_directa=("directa", "mean"),
         pct_un_solo_postor=("un_solo_postor", "mean"),
         monto_total=("monto_adjudicado", "sum"),
@@ -252,25 +274,25 @@ def main() -> None:
     save_current("grafico_16", "Score de transparencia por departamento", "Transparencia Geográfica", "departamento, directa, un_solo_postor, monto_adjudicado", "Sintetiza tres señales de interés en un único indicador territorial.", meta)
 
     boxes_asis = {
-        "a": (0.5, 5.7, 2.4, 1.0, "Descarga manual de archivos CSV\nOCDS por año"),
-        "b": (3.4, 5.7, 2.6, 1.0, "Apertura individual\nen Excel"),
-        "c": (6.5, 5.7, 2.8, 1.0, "Cruce manual con\nVLOOKUP y tablas dinámicas"),
-        "d": (9.9, 5.7, 2.6, 1.0, "Construcción manual\nde gráficos y reportes"),
-        "e": (3.4, 3.5, 2.6, 1.0, "Validación manual\nde errores y vacíos"),
-        "f": (6.5, 3.5, 2.8, 1.0, "Actualización periódica\nconsumidora de tiempo"),
-        "g": (9.9, 3.5, 2.6, 1.0, "Análisis tardío\ny estático"),
+        "a": (0.5, 5.7, 2.4, 1.2, "Descarga manual de archivos CSV\nOCDS por año"),
+        "b": (3.4, 5.7, 2.6, 1.2, "Apertura individual\nen Excel"),
+        "c": (6.5, 5.7, 2.8, 1.2, "Cruce manual con\nVLOOKUP y tablas dinámicas"),
+        "d": (9.9, 5.7, 2.6, 1.2, "Construcción manual\nde gráficos y reportes"),
+        "e": (3.4, 3.4, 2.6, 1.2, "Validación manual\nde errores y vacíos"),
+        "f": (6.5, 3.4, 2.8, 1.2, "Actualización periódica\nconsumidora de tiempo"),
+        "g": (9.9, 3.4, 2.6, 1.2, "Análisis tardío\ny estático"),
     }
     flow_diagram(OUT / "flujo_asis.png", "Figura 1. Flujo actual de análisis manual (AS-IS)", boxes_asis, [("a", "b"), ("b", "c"), ("c", "d"), ("b", "e"), ("e", "f"), ("f", "g")])
 
     boxes_tobe = {
-        "a": (0.4, 5.8, 2.5, 1.0, "Carga automática de\narchivos 2022, 2023 y 2024"),
-        "b": (3.3, 5.8, 2.7, 1.0, "Integración por ocid\ny consolidación anual"),
-        "c": (6.5, 5.8, 2.7, 1.0, "Limpieza y creación de\nvariables derivadas"),
-        "d": (9.7, 5.8, 2.8, 1.0, "Base maestra única\nen CSV"),
-        "e": (3.3, 3.5, 2.7, 1.0, "Cálculo automático\nde KPIs"),
-        "f": (6.5, 3.5, 2.7, 1.0, "Generación de 16\nvisualizaciones"),
-        "g": (9.7, 3.5, 2.8, 1.0, "Dashboard interactivo\nen Streamlit"),
-        "h": (6.5, 1.2, 2.7, 1.0, "Exposición, análisis\ny priorización de riesgo"),
+        "a": (0.4, 5.8, 2.5, 1.25, "Carga automática de\narchivos 2022, 2023 y 2024"),
+        "b": (3.3, 5.8, 2.7, 1.25, "Integración por ocid\ny consolidación anual"),
+        "c": (6.5, 5.8, 2.7, 1.25, "Limpieza y creación de\nvariables derivadas"),
+        "d": (9.7, 5.8, 2.8, 1.25, "Base maestra única\nen CSV"),
+        "e": (3.3, 3.4, 2.7, 1.25, "Cálculo automático\nde KPIs"),
+        "f": (6.5, 3.4, 2.7, 1.25, "Generación de 16\nvisualizaciones"),
+        "g": (9.7, 3.4, 2.8, 1.25, "Dashboard interactivo\nen Streamlit"),
+        "h": (6.5, 1.0, 2.7, 1.25, "Exposición, análisis\ny priorización de riesgo"),
     }
     flow_diagram(OUT / "flujo_tobe.png", "Figura 2. Flujo propuesto con dashboard automatizado (TO-BE)", boxes_tobe, [("a", "b"), ("b", "c"), ("c", "d"), ("b", "e"), ("e", "f"), ("f", "g"), ("f", "h")])
 

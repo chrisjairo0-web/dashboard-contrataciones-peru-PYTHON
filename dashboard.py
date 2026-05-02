@@ -189,12 +189,14 @@ def cargar_datos() -> pd.DataFrame:
     # Preparamos columnas de fecha para graficos temporales.
     df["fecha_proceso"] = pd.to_datetime(df["fecha_proceso"], errors="coerce")
     df["mes"] = df["fecha_proceso"].dt.to_period("M").astype(str)
+    mes_num = df["fecha_proceso"].dt.month.fillna(1).astype(int).astype(str).str.zfill(2)
 
     # Si la base conserva la columna original sin tilde, se renombra para unificar la presentación.
     if "anio" in df.columns and "año" not in df.columns:
         df = df.rename(columns={"anio": "año"})
+    df["mes_reporte"] = pd.to_datetime(df["año"].astype(int).astype(str) + "-" + mes_num + "-01", errors="coerce")
 
-    # Rellenamos textos para que filtros y etiquetas no queden vacios.
+    # Rellenamos textos para control interno; luego se excluyen de filtros y gráficos visibles.
     for col in ["categoria", "metodo_simple", "departamento", "entidad_compradora", "proveedor_ganador"]:
         if col in df.columns:
             df[col] = df[col].fillna("Sin dato")
@@ -273,7 +275,7 @@ def cerrar_tarjeta() -> None:
 def obtener_score_departamento(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Calcula un score simple de transparencia por departamento."""
     score = (
-        dataframe[dataframe["departamento"] != "Sin dato"]
+        dataframe[es_valor_visible(dataframe["departamento"])]
         .groupby("departamento", as_index=False)
         .agg(
             procesos=("ocid", "nunique"),
@@ -295,6 +297,12 @@ def obtener_score_departamento(dataframe: pd.DataFrame) -> pd.DataFrame:
     return score
 
 
+def es_valor_visible(serie: pd.Series) -> pd.Series:
+    """Filtra etiquetas de relleno para evitar su aparición en gráficos y filtros."""
+    textos_invalidos = {"sin dato", "no especificado", "nan", ""}
+    return ~serie.astype(str).str.strip().str.lower().isin(textos_invalidos)
+
+
 aplicar_estilos()
 df = cargar_datos()
 proveedores = cargar_proveedores()
@@ -305,8 +313,8 @@ with st.sidebar:
     st.caption("Filtros globales del análisis")
 
     años = sorted(df["año"].dropna().unique().tolist())
-    departamentos = sorted(df["departamento"].dropna().unique().tolist())
-    categorias = sorted(df["categoria"].dropna().unique().tolist())
+    departamentos = sorted(df.loc[es_valor_visible(df["departamento"]), "departamento"].dropna().unique().tolist())
+    categorias = sorted(df.loc[es_valor_visible(df["categoria"]), "categoria"].dropna().unique().tolist())
 
     filtro_años = st.multiselect("Año", options=años, default=años)
     filtro_departamentos = st.multiselect("Departamento", options=departamentos)
@@ -340,7 +348,7 @@ pct_un_postor = dash["un_solo_postor"].mean() * 100
 monto_total = dash["monto_MM"].sum()
 pct_directa = (dash["metodo_simple"] == "Directa").mean() * 100
 monto_riesgo = dash.loc[dash["un_solo_postor"], "monto_MM"].sum()
-departamentos_activos = dash.loc[dash["departamento"] != "Sin dato", "departamento"].nunique()
+departamentos_activos = dash.loc[es_valor_visible(dash["departamento"]), "departamento"].nunique()
 
 # Cabecera principal, mas cercana a un tablero ejecutivo.
 st.markdown(
@@ -397,7 +405,10 @@ with tab1:
         mini2.metric("Categorías", formatear_entero(dash["categoria"].nunique()))
         mini3, mini4 = st.columns(2)
         mini3.metric("Entidades", formatear_entero(dash["entidad_compradora"].nunique()))
-        mini4.metric("Proveedores", formatear_entero(proveedores_dash["proveedor_ganador"].nunique()))
+        mini4.metric(
+            "Proveedores",
+            formatear_entero(proveedores_dash.loc[es_valor_visible(proveedores_dash["proveedor_ganador"]), "proveedor_ganador"].nunique()),
+        )
         cerrar_tarjeta()
 
     with c2:
@@ -405,7 +416,7 @@ with tab1:
             "Distribución del monto por categoría",
             "El gráfico identifica en qué categoría se concentra el monto adjudicado dentro del período analizado.",
         )
-        g1 = dash.groupby("categoria", as_index=False).agg(monto_MM=("monto_MM", "sum"))
+        g1 = dash[es_valor_visible(dash["categoria"])].groupby("categoria", as_index=False).agg(monto_MM=("monto_MM", "sum"))
         fig1 = px.treemap(
             g1,
             path=["categoria"],
@@ -443,7 +454,7 @@ with tab1:
             "Participación por método",
             "La composición porcentual permite distinguir el peso relativo de cada modalidad de contratación.",
         )
-        g3 = dash.groupby("metodo_simple", as_index=False).agg(procesos=("ocid", "nunique"))
+        g3 = dash[es_valor_visible(dash["metodo_simple"])].groupby("metodo_simple", as_index=False).agg(procesos=("ocid", "nunique"))
         fig3 = px.pie(
             g3,
             names="metodo_simple",
@@ -454,7 +465,6 @@ with tab1:
                 "Competitivo": "#61d6a3",
                 "Directa": "#ff6658",
                 "Selectivo": "#6ea8fe",
-                "Sin dato": "#8b93a8",
             },
         )
         tema_plotly(fig3, "Participación de procesos por método")
@@ -472,7 +482,7 @@ with tab2:
             "Distribución del número de postores",
             "La distribución muestra si predomina una participación reducida o una concurrencia más amplia entre postores.",
         )
-        g4 = dash["n_postores"].dropna().clip(upper=10)
+        g4 = dash.loc[dash["n_postores"] > 0, "n_postores"].dropna().clip(upper=10)
         fig4 = px.histogram(g4, nbins=10, color_discrete_sequence=["#6ea8fe"])
         tema_plotly(fig4, "Número de postores por proceso")
         fig4.update_xaxes(title="Número de postores (10 representa 10 o más)")
@@ -486,7 +496,7 @@ with tab2:
             "El ranking territorial evidencia dónde se concentra la mayor cantidad de procesos con un único postor.",
         )
         g5 = (
-            dash[dash["departamento"] != "Sin dato"]
+            dash[es_valor_visible(dash["departamento"])]
             .groupby("departamento", as_index=False)
             .agg(casos_un_postor=("un_solo_postor", "sum"))
             .sort_values("casos_un_postor", ascending=False)
@@ -512,7 +522,8 @@ with tab2:
             "Método por categoría",
             "La comparación permite identificar qué categorías se apoyan más en contratación directa y cuáles muestran mayor competencia.",
         )
-        g6 = pd.crosstab(dash["categoria"], dash["metodo_simple"], normalize="index").reset_index()
+        g6_base = dash[es_valor_visible(dash["categoria"]) & es_valor_visible(dash["metodo_simple"])].copy()
+        g6 = pd.crosstab(g6_base["categoria"], g6_base["metodo_simple"], normalize="index").reset_index()
         g6 = g6.melt(id_vars="categoria", var_name="metodo_simple", value_name="porcentaje")
         g6["porcentaje"] = g6["porcentaje"] * 100
         fig6 = px.bar(
@@ -525,7 +536,6 @@ with tab2:
                 "Competitivo": "#61d6a3",
                 "Directa": "#ff6658",
                 "Selectivo": "#6ea8fe",
-                "Sin dato": "#8b93a8",
             },
         )
         tema_plotly(fig6, "Composición del método de contratación por categoría")
@@ -607,7 +617,6 @@ with tab3:
                 "Bienes": "#61d6a3",
                 "Servicios": "#6ea8fe",
                 "Obras": "#ff6658",
-                "Sin dato": "#8b93a8",
             },
         )
         tema_plotly(fig9, "Evolución del gasto por categoría")
@@ -673,7 +682,7 @@ with tab4:
             "La intensidad del color representa un mayor porcentaje de procesos con un solo postor en la combinación analizada.",
         )
         top_dptos = (
-            dash[dash["departamento"] != "Sin dato"]
+            dash[es_valor_visible(dash["departamento"])]
             .groupby("departamento")["ocid"]
             .nunique()
             .sort_values(ascending=False)
@@ -705,16 +714,15 @@ with tab4:
             "La tendencia mensual permite observar la trayectoria comparada entre procesos directos y procesos competitivos.",
         )
         g12 = (
-            dash[dash["metodo_simple"].isin(["Competitivo", "Directa"])]
-            .groupby(["mes", "metodo_simple"], as_index=False)
+            dash[dash["metodo_simple"].isin(["Competitivo", "Directa"]) & dash["mes_reporte"].notna()]
+            .groupby(["mes_reporte", "metodo_simple"], as_index=False)
             .agg(procesos=("ocid", "nunique"))
         )
         if not g12.empty:
-            g12["mes_dt"] = pd.to_datetime(g12["mes"] + "-01")
-            g12 = g12.sort_values("mes_dt")
+            g12 = g12.sort_values("mes_reporte")
             fig13 = px.line(
                 g12,
-                x="mes_dt",
+                x="mes_reporte",
                 y="procesos",
                 color="metodo_simple",
                 markers=True,
@@ -732,7 +740,8 @@ with tab4:
             "El ranking resume el grado de concentración de adjudicaciones en un conjunto reducido de proveedores.",
         )
         g13 = (
-            proveedores_dash.groupby("proveedor_ganador", as_index=False)
+            proveedores_dash[es_valor_visible(proveedores_dash["proveedor_ganador"])]
+            .groupby("proveedor_ganador", as_index=False)
             .agg(procesos_ganados=("ocid", "nunique"))
             .sort_values("procesos_ganados", ascending=False)
             .head(15)
