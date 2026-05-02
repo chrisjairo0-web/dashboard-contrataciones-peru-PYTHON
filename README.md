@@ -1,41 +1,45 @@
-# Dashboard de Contrataciones Publicas del Peru
+# Dashboard de Contrataciones Públicas del Perú
 
-Proyecto final del curso de Especializacion en Python.
+Proyecto final desarrollado a partir de información OCDS correspondiente a los años `2022`, `2023` y `2024`.
 
-## Descripcion
+## Descripción
 
-Este proyecto analiza las contrataciones publicas del Peru a partir de datos OCDS de los anios `2022`, `2023` y `2024`.
-El objetivo es integrar los archivos originales, construir una base maestra y generar visualizaciones que ayuden a identificar patrones de riesgo, falta de competencia y concentracion de procesos.
+El repositorio presenta un análisis de contrataciones públicas del Perú con énfasis en competencia, riesgo económico y transparencia territorial. El trabajo consolida los archivos originales, construye una base maestra única y organiza los resultados en visualizaciones y en un dashboard interactivo.
 
-El trabajo se organiza en tres partes principales:
+La exposición del proyecto sigue una secuencia ordenada:
 
-- union y limpieza de datos
-- visualizaciones del informe
-- dashboard interactivo
+1. Carga, integración y limpieza de datos.
+1. Construcción de visualizaciones analíticas.
+1. Cálculo de indicadores clave de transparencia.
+1. Presentación final en un dashboard interactivo.
 
 ## Estructura del repositorio
 
-- `data/`
-  Contiene las carpetas `2022/`, `2023/` y `2024/` con los CSVs originales del dataset.
-- `data/contrataciones_peru_2022_2024_maestro.csv`
-  Base maestra consolidada luego del proceso de union y limpieza.
-- `notebooks/01_carga_limpieza.ipynb`
-  Notebook que muestra como se cargan, unen y limpian los datos de los tres anios.
-- `notebooks/02_visualizaciones.ipynb`
-  Notebook con las visualizaciones organizadas en 4 secciones del proyecto:
-  Resumen General, Competencia, Riesgo Economico y Transparencia Geografica.
-- `notebooks/03_dashboard_rq.ipynb`
-  Notebook tipo dashboard, inspirado en una vista de reporte interactivo aplicada al tema del proyecto.
-- `dashboard.py`
-  Dashboard interactivo en Streamlit.
-- `requirements.txt`
-  Archivo con las dependencias necesarias para ejecutar el proyecto.
-- `.gitattributes`
-  Configuracion de Git LFS para archivos grandes.
-- `.gitignore`
-  Exclusiones de archivos temporales y carpetas que no deben subirse al repositorio.
+1. `data/`
+Contiene las carpetas `2022/`, `2023/` y `2024/` con los archivos CSV originales del conjunto de datos.
 
-## Librerias utilizadas
+1. `data/contrataciones_peru_2022_2024_maestro.csv`
+Corresponde a la base maestra consolidada, utilizada como fuente principal para indicadores, gráficos y dashboard.
+
+1. `notebooks/01_carga_limpieza.ipynb`
+Documenta la integración de los años, la revisión de la base maestra y la validación de las variables principales del proyecto.
+
+1. `notebooks/02_visualizaciones.ipynb`
+Presenta los `16` gráficos del informe, organizados en las cuatro secciones del proyecto: Resumen General, Competencia, Riesgo Económico y Transparencia Geográfica.
+
+1. `notebooks/03_kpis_resumen.ipynb`
+Resume los principales indicadores de transparencia y los organiza en una vista ejecutiva de apoyo para la sustentación.
+
+1. `dashboard.py`
+Contiene el script principal del dashboard interactivo desarrollado en Streamlit.
+
+1. `requirements.txt`
+Incluye las dependencias necesarias para reproducir el proyecto.
+
+1. `README.md`
+Describe la estructura del repositorio, el flujo de trabajo y la forma de ejecución.
+
+## Librerías utilizadas
 
 - `pandas`
 - `numpy`
@@ -44,47 +48,49 @@ El trabajo se organiza en tres partes principales:
 - `plotly`
 - `streamlit`
 - `pypdf`
+- `ipython`
+- `nbformat`
 
-## Como ejecutar el proyecto
+## Ejecución del proyecto
 
-1. Instalar dependencias:
+1. Instalar las dependencias:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Revisar la integracion y limpieza de datos:
+1. Revisar la integración y limpieza de datos:
 
 Abrir `notebooks/01_carga_limpieza.ipynb`.
 
-3. Revisar los graficos del informe:
+1. Revisar las visualizaciones del informe:
 
 Abrir `notebooks/02_visualizaciones.ipynb`.
 
-4. Revisar la version de dashboard en notebook:
+1. Revisar el resumen de indicadores:
 
-Abrir `notebooks/03_dashboard_rq.ipynb`.
+Abrir `notebooks/03_kpis_resumen.ipynb`.
 
-5. Ejecutar el dashboard interactivo en Streamlit:
+1. Ejecutar el dashboard interactivo:
 
 ```bash
 streamlit run dashboard.py
 ```
 
-## Resultados esperados
+## Resultados principales
 
-Con este proyecto se pueden revisar, entre otros puntos:
+El repositorio permite sustentar, entre otros resultados:
 
-- total de procesos analizados
+- volumen total de procesos analizados
 - porcentaje de procesos con un solo postor
 - monto adjudicado total
-- distribucion del gasto por categoria
-- departamentos con mayor concentracion de procesos de riesgo
-- entidades con mayor numero de contrataciones directas
-- evolucion temporal de procesos competitivos y directos
+- distribución del gasto por categoría
+- concentración territorial de procesos con menor competencia
+- entidades con mayor presencia de contratación directa
+- evolución temporal de procesos competitivos y directos
 
 ## Nota sobre los datos
 
-Los archivos CSV originales son pesados, por lo que el repositorio usa `Git LFS` para poder almacenarlos correctamente en GitHub.
+Los archivos CSV originales tienen un tamaño considerable; por ello, el repositorio utiliza `Git LFS` para facilitar su almacenamiento y versionado en GitHub.
 
-Ademas, la version final del proyecto mantiene una salida principal en CSV (`contrataciones_peru_2022_2024_maestro.csv`) para que el flujo sea mas simple y facil de explicar en la sustentacion.
+La versión final del proyecto trabaja con una salida principal en CSV, `contrataciones_peru_2022_2024_maestro.csv`, de modo que la trazabilidad del análisis pueda explicarse con claridad ante el jurado: primero se integran y depuran los datos, luego se calculan los indicadores y finalmente se presentan los resultados en gráficos y dashboard.
