@@ -416,15 +416,23 @@ with tab1:
             "Distribución del monto por categoría",
             "El gráfico identifica en qué categoría se concentra el monto adjudicado dentro del período analizado.",
         )
-        g1 = dash[es_valor_visible(dash["categoria"])].groupby("categoria", as_index=False).agg(monto_MM=("monto_MM", "sum"))
-        fig1 = px.treemap(
+        g1 = (
+            dash[es_valor_visible(dash["categoria"])]
+            .groupby("categoria", as_index=False)
+            .agg(monto_MM=("monto_MM", "sum"))
+            .sort_values("monto_MM")
+        )
+        fig1 = px.bar(
             g1,
-            path=["categoria"],
-            values="monto_MM",
+            x="monto_MM",
+            y="categoria",
+            orientation="h",
             color="monto_MM",
-            color_continuous_scale=["#2b3350", "#3a5ccf", "#ff6658"],
+            color_continuous_scale=["#2b3350", "#4d7cff", "#8cc8ff"],
         )
         tema_plotly(fig1, "Monto adjudicado por categoría")
+        fig1.update_xaxes(title="Millones de PEN")
+        fig1.update_yaxes(title="Categoría")
         st.plotly_chart(fig1, use_container_width=True)
         cerrar_tarjeta()
 
@@ -470,6 +478,28 @@ with tab1:
         tema_plotly(fig3, "Participación de procesos por método")
         st.plotly_chart(fig3, use_container_width=True)
         cerrar_tarjeta()
+
+    tarjeta_grafico(
+        "Monto adjudicado por año y categoría",
+        "La comparación cruzada entre año y categoría permite observar cambios en la composición del gasto adjudicado a lo largo del período.",
+    )
+    g4_resumen = (
+        dash[es_valor_visible(dash["categoria"])]
+        .groupby(["año", "categoria"], as_index=False)
+        .agg(monto_MM=("monto_MM", "sum"))
+    )
+    fig4_resumen = px.bar(
+        g4_resumen,
+        x="año",
+        y="monto_MM",
+        color="categoria",
+        barmode="group",
+        color_discrete_map={"Bienes": "#61d6a3", "Servicios": "#6ea8fe", "Obras": "#ff6658"},
+    )
+    tema_plotly(fig4_resumen, "Monto adjudicado por año y categoría")
+    fig4_resumen.update_yaxes(title="Monto adjudicado (MM PEN)")
+    st.plotly_chart(fig4_resumen, use_container_width=True)
+    cerrar_tarjeta()
 
 with tab2:
     st.subheader("Sección 2. Competencia")
@@ -762,21 +792,22 @@ with tab4:
     with c4:
         tarjeta_grafico(
             "Score de transparencia por departamento",
-            "La tabla consolida tres señales de interés: contratación directa, presencia de un solo postor y peso relativo del monto en riesgo.",
+            "El gráfico sintetiza en una sola escala el peso de la contratación directa, la presencia de un solo postor y la proporción del monto en riesgo.",
         )
-        score = obtener_score_departamento(dash).sort_values("score_transparencia").head(15)
-        st.dataframe(
-            score[
-                [
-                    "departamento",
-                    "procesos",
-                    "pct_directa",
-                    "pct_un_solo_postor",
-                    "pct_monto_riesgo",
-                    "score_transparencia",
-                ]
-            ].round(2),
-            use_container_width=True,
-            hide_index=True,
+        score = obtener_score_departamento(dash).sort_values("score_transparencia", ascending=False).head(15)
+        score = score.sort_values("score_transparencia")
+        fig15 = px.bar(
+            score,
+            x="score_transparencia",
+            y="departamento",
+            orientation="h",
+            text="score_transparencia",
+            color="score_transparencia",
+            color_continuous_scale=["#2b3350", "#6ea8fe", "#ff6658"],
         )
+        fig15.update_traces(texttemplate="%{text:.2f}", textposition="outside")
+        tema_plotly(fig15, "Score de transparencia por departamento")
+        fig15.update_xaxes(title="Score de transparencia")
+        fig15.update_yaxes(title="Departamento")
+        st.plotly_chart(fig15, use_container_width=True)
         cerrar_tarjeta()
