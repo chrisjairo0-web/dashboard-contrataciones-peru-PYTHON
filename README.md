@@ -41,14 +41,14 @@ Describe la estructura del repositorio, el flujo de trabajo y la forma de ejecuc
 
 ## Librerías utilizadas
 
-- `pandas`
-- `numpy`
-- `matplotlib`
-- `seaborn`
-- `plotly`
-- `streamlit`
-- `pypdf`
-- `ipython`
+- `Pandas`
+- `NumPy`
+- `Matplotlib`
+- `Seaborn`
+- `Plotly`
+- `Streamlit`
+- `PyPDF`
+- `IPython`
 - `nbformat`
 
 ## Ejecución del proyecto
@@ -81,13 +81,13 @@ streamlit run dashboard.py
 
 El repositorio permite sustentar, entre otros resultados:
 
-- volumen total de procesos analizados
-- porcentaje de procesos con un solo postor
-- monto adjudicado total
-- distribución del gasto por categoría
-- concentración territorial de procesos con menor competencia
-- entidades con mayor presencia de contratación directa
-- evolución temporal de procesos competitivos y directos
+- Volumen total de procesos analizados.
+- Porcentaje de procesos con un solo postor.
+- Monto adjudicado total.
+- Distribución del gasto por categoría.
+- Concentración territorial de procesos con menor competencia.
+- Entidades con mayor presencia de contratación directa.
+- Evolución temporal de procesos competitivos y directos.
 
 ## Nota sobre los datos
 

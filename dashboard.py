@@ -6,7 +6,7 @@ import plotly.express as px
 import streamlit as st
 
 
-# Configuramos la pagina antes de dibujar cualquier componente.
+# Configuramos la página antes de dibujar cualquier componente.
 st.set_page_config(
     page_title="Dashboard de Contrataciones del Perú",
     page_icon="📊",
@@ -175,10 +175,10 @@ def aplicar_estilos() -> None:
 
 @st.cache_data
 def cargar_datos() -> pd.DataFrame:
-    """Lee la base maestra y prepara columnas utiles para el dashboard."""
+    """Lee la base maestra y prepara columnas útiles para el dashboard."""
     df = pd.read_csv(DATA_FILE, low_memory=False)
 
-    # Convertimos columnas numericas para evitar errores en graficos y KPIs.
+    # Convertimos columnas numéricas para evitar errores en gráficos y KPIs.
     df["n_postores"] = pd.to_numeric(df["n_postores"], errors="coerce")
     df["monto_adjudicado"] = pd.to_numeric(df["monto_adjudicado"], errors="coerce").fillna(0)
     df["monto_MM"] = df["monto_adjudicado"] / 1_000_000
@@ -186,7 +186,7 @@ def cargar_datos() -> pd.DataFrame:
     # Estandarizamos el indicador booleano.
     df["un_solo_postor"] = df["un_solo_postor"].astype(str).str.lower().eq("true")
 
-    # Preparamos columnas de fecha para graficos temporales.
+    # Preparamos columnas de fecha para gráficos temporales.
     df["fecha_proceso"] = pd.to_datetime(df["fecha_proceso"], errors="coerce")
     df["mes"] = df["fecha_proceso"].dt.to_period("M").astype(str)
     mes_num = df["fecha_proceso"].dt.month.fillna(1).astype(int).astype(str).str.zfill(2)
@@ -231,7 +231,7 @@ def formatear_mm(valor: float) -> str:
 
 
 def tema_plotly(fig, titulo: str):
-    """Aplica un estilo visual uniforme a todos los graficos de Plotly."""
+    """Aplica un estilo visual uniforme a todos los gráficos de Plotly."""
     fig.update_layout(
         title=titulo,
         paper_bgcolor="rgba(0,0,0,0)",
@@ -350,7 +350,7 @@ pct_directa = (dash["metodo_simple"] == "Directa").mean() * 100
 monto_riesgo = dash.loc[dash["un_solo_postor"], "monto_MM"].sum()
 departamentos_activos = dash.loc[es_valor_visible(dash["departamento"]), "departamento"].nunique()
 
-# Cabecera principal, mas cercana a un tablero ejecutivo.
+# Cabecera principal, más cercana a un tablero ejecutivo.
 st.markdown(
     f"""
     <div class="hero-box">

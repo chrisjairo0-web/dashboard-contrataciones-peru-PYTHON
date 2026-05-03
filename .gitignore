@@ -3,3 +3,6 @@ __pycache__/
 .ipynb_checkpoints/
 EJEMPLOS ASESOR/
 _tmp_kaleido/
+.vscode/
+.jupyter_runtime/
+data/titanic.csv
