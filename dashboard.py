@@ -2,812 +2,659 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import seaborn as sns
 import plotly.express as px
 import streamlit as st
 
 
-# Configuramos la página antes de dibujar cualquier componente.
+# ============================================================
+# 1. CONFIGURACION GENERAL
+# ============================================================
+
+# Esta línea configura la página de Streamlit.
 st.set_page_config(
     page_title="Dashboard de Contrataciones del Perú",
-    page_icon="📊",
     layout="wide",
+    initial_sidebar_state="expanded",
+    page_icon="📊",
 )
 
-# Definimos las rutas principales del proyecto.
+# Título principal del dashboard.
+st.title("Análisis de contrataciones públicas del Perú")
+
+# Texto corto de presentación.
+st.write(
+    "Este dashboard resume los resultados del análisis de contrataciones públicas "
+    "del Perú para los años 2022, 2023 y 2024."
+)
+
+
+# ============================================================
+# 2. RUTA DEL ARCHIVO CSV
+# ============================================================
+
+# Path(__file__) representa la ruta del archivo actual.
+# .resolve() obtiene la ruta completa.
+# .parent nos lleva a la carpeta donde está guardado dashboard.py.
 BASE_DIR = Path(__file__).resolve().parent
+
+# Construimos la ruta de la carpeta data.
 DATA_DIR = BASE_DIR / "data"
+
+# Construimos la ruta exacta del archivo CSV principal.
 DATA_FILE = DATA_DIR / "contrataciones_peru_2022_2024_maestro.csv"
 
 
-def aplicar_estilos() -> None:
-    """Aplica un estilo oscuro para que el dashboard se vea como tablero ejecutivo."""
-    st.markdown(
-        """
-        <style>
-        :root {
-            --bg-main: #0f1119;
-            --bg-panel: #171b27;
-            --bg-card: #1d2232;
-            --bg-soft: #252c3f;
-            --line: rgba(255,255,255,0.08);
-            --text-main: #f5f7fb;
-            --text-soft: #b8bfd1;
-            --accent: #ff6658;
-            --accent-2: #61d6a3;
-            --accent-3: #6ea8fe;
-        }
+# ============================================================
+# 3. FUNCION PARA CARGAR Y LIMPIAR LOS DATOS
+# ============================================================
 
-        .stApp {
-            background:
-                radial-gradient(circle at top left, rgba(255,102,88,0.10), transparent 28%),
-                radial-gradient(circle at top right, rgba(97,214,163,0.07), transparent 24%),
-                linear-gradient(180deg, #0b0d14 0%, #111522 100%);
-            color: var(--text-main);
-        }
-
-        [data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #111420 0%, #0d1018 100%);
-            border-right: 1px solid var(--line);
-        }
-
-        [data-testid="stHeader"] {
-            background: rgba(0,0,0,0);
-        }
-
-        .block-container {
-            padding-top: 1.4rem;
-            padding-bottom: 2rem;
-        }
-
-        div[data-testid="stMetric"] {
-            background: linear-gradient(180deg, rgba(32,38,54,0.98) 0%, rgba(24,29,41,0.98) 100%);
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            padding: 14px 16px;
-            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
-            min-height: 120px;
-        }
-
-        div[data-testid="stMetricLabel"] {
-            color: var(--text-soft);
-            font-size: 0.88rem;
-        }
-
-        div[data-testid="stMetricValue"] {
-            color: var(--text-main);
-            font-size: 2rem;
-        }
-
-        .hero-box {
-            background: linear-gradient(135deg, rgba(255,102,88,0.14), rgba(110,168,254,0.08));
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 22px;
-            padding: 22px 24px;
-            margin-bottom: 1rem;
-        }
-
-        .hero-top {
-            color: #ffb3a8;
-            font-size: 0.78rem;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-        }
-
-        .hero-title {
-            color: var(--text-main);
-            font-size: 2rem;
-            font-weight: 700;
-            margin-top: 0.35rem;
-            margin-bottom: 0.4rem;
-        }
-
-        .hero-subtitle {
-            color: var(--text-soft);
-            font-size: 0.98rem;
-            line-height: 1.5;
-        }
-
-        .badge-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 14px;
-        }
-
-        .badge-chip {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.08);
-            color: var(--text-main);
-            border-radius: 999px;
-            padding: 6px 12px;
-            font-size: 0.82rem;
-        }
-
-        .section-note {
-            color: var(--text-soft);
-            font-size: 0.95rem;
-            margin-top: -0.2rem;
-            margin-bottom: 1rem;
-        }
-
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 0.7rem;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 16px;
-            padding: 0.45rem;
-        }
-
-        .stTabs [data-baseweb="tab"] {
-            background: #1b2030;
-            border-radius: 12px;
-            color: var(--text-soft);
-            min-height: 54px;
-            padding-left: 18px;
-            padding-right: 18px;
-            border: 1px solid rgba(255,255,255,0.04);
-        }
-
-        .stTabs [aria-selected="true"] {
-            background: linear-gradient(90deg, rgba(255,102,88,0.95), rgba(255,126,93,0.9));
-            color: white;
-        }
-
-        .chart-card {
-            background: linear-gradient(180deg, rgba(24,29,41,0.97) 0%, rgba(18,22,32,0.97) 100%);
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            padding: 0.7rem 0.7rem 0.25rem 0.7rem;
-            margin-bottom: 1rem;
-            box-shadow: 0 14px 32px rgba(0,0,0,0.18);
-        }
-
-        .chart-caption {
-            color: var(--text-soft);
-            font-size: 0.85rem;
-            margin: 0.3rem 0 0.8rem 0.3rem;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
+# @st.cache_data hace que la data se cargue una sola vez.
+# Así el dashboard corre más rápido cuando movemos filtros.
 @st.cache_data
-def cargar_datos() -> pd.DataFrame:
-    """Lee la base maestra y prepara columnas útiles para el dashboard."""
+def load_data():
+    # Leemos el archivo CSV principal.
     df = pd.read_csv(DATA_FILE, low_memory=False)
 
-    # Convertimos columnas numéricas para evitar errores en gráficos y KPIs.
-    df["n_postores"] = pd.to_numeric(df["n_postores"], errors="coerce")
-    df["monto_adjudicado"] = pd.to_numeric(df["monto_adjudicado"], errors="coerce").fillna(0)
-    df["monto_MM"] = df["monto_adjudicado"] / 1_000_000
-
-    # Estandarizamos el indicador booleano.
-    df["un_solo_postor"] = df["un_solo_postor"].astype(str).str.lower().eq("true")
-
-    # Preparamos columnas de fecha para gráficos temporales.
-    df["fecha_proceso"] = pd.to_datetime(df["fecha_proceso"], errors="coerce")
-    df["mes"] = df["fecha_proceso"].dt.to_period("M").astype(str)
-    mes_num = df["fecha_proceso"].dt.month.fillna(1).astype(int).astype(str).str.zfill(2)
-
-    # Si la base conserva la columna original sin tilde, se renombra para unificar la presentación.
+    # Si la base viniera con "anio", la renombramos a "año".
     if "anio" in df.columns and "año" not in df.columns:
         df = df.rename(columns={"anio": "año"})
-    df["mes_reporte"] = pd.to_datetime(df["año"].astype(int).astype(str) + "-" + mes_num + "-01", errors="coerce")
 
-    # Rellenamos textos para control interno; luego se excluyen de filtros y gráficos visibles.
-    for col in ["categoria", "metodo_simple", "departamento", "entidad_compradora", "proveedor_ganador"]:
+    # Convertimos variables numéricas para evitar errores en gráficos.
+    df["monto_adjudicado"] = pd.to_numeric(df["monto_adjudicado"], errors="coerce").fillna(0)
+    df["n_postores"] = pd.to_numeric(df["n_postores"], errors="coerce")
+
+    # Creamos una columna en millones de soles para que los montos
+    # sean más fáciles de leer.
+    df["monto_MM"] = df["monto_adjudicado"] / 1_000_000
+
+    # Creamos la variable booleana "un_solo_postor".
+    # Será True si el número de postores es igual a 1.
+    df["un_solo_postor"] = df["n_postores"].eq(1)
+
+    # Creamos una variable booleana para identificar contrataciones directas.
+    # Si el texto contiene "direct", entonces será True.
+    df["directa"] = df["metodo_simple"].astype(str).str.contains("direct", case=False, na=False)
+
+    # Convertimos la fecha del proceso a formato fecha.
+    df["fecha_proceso"] = pd.to_datetime(df["fecha_proceso"], errors="coerce")
+
+    # Guardamos una columna auxiliar de fecha, igual que en el notebook.
+    df["fecha"] = df["fecha_proceso"]
+
+    # Extraemos el número de mes de la fecha.
+    mes_numero = df["fecha"].dt.month.fillna(1).astype(int).astype(str).str.zfill(2)
+
+    # Construimos el mes de reporte con el año oficial del análisis.
+    # Así evitamos que el gráfico se vaya a años históricos como 2015.
+    df["mes_reporte"] = pd.to_datetime(
+        df["año"].astype(int).astype(str) + "-" + mes_numero + "-01",
+        errors="coerce",
+    )
+
+    # Limpiamos columnas de texto que vamos a usar en filtros y gráficos.
+    columnas_texto = [
+        "categoria",
+        "metodo_simple",
+        "departamento",
+        "entidad_compradora",
+        "proveedor_ganador",
+    ]
+
+    for col in columnas_texto:
         if col in df.columns:
             df[col] = df[col].fillna("Sin dato")
+            df[col] = df[col].astype(str).str.strip()
 
+    # Retornamos el DataFrame ya listo.
     return df
 
 
-@st.cache_data
-def cargar_proveedores() -> pd.DataFrame:
-    """Carga una tabla auxiliar de proveedores ganadores para el ranking final."""
-    partes = []
-    for año in [2022, 2023, 2024]:
-        ruta = DATA_DIR / str(año) / "awards_suppliers.csv"
-        temp = pd.read_csv(ruta, usecols=["main_ocid", "name"], low_memory=False)
-        temp["año"] = año
-        partes.append(temp)
-
-    proveedores = pd.concat(partes, ignore_index=True)
-    proveedores = proveedores.rename(columns={"main_ocid": "ocid", "name": "proveedor_ganador"})
-    proveedores["proveedor_ganador"] = proveedores["proveedor_ganador"].fillna("Sin dato")
-    return proveedores
+# Cargamos la data llamando a la función.
+df = load_data()
 
 
-def formatear_entero(valor: float) -> str:
-    """Formatea un entero para mostrarlo con separadores de miles."""
-    return f"{int(valor):,}"
+# ============================================================
+# 4. FUNCION AUXILIAR PARA QUITAR "SIN DATO"
+# ============================================================
+
+# Esta función devuelve True solo para valores que sí queremos
+# mostrar en filtros y gráficos.
+def es_valor_visible(serie):
+    invalidos = {"Sin dato", "", "nan", "None"}
+    return ~serie.astype(str).str.strip().isin(invalidos)
 
 
-def formatear_mm(valor: float) -> str:
-    """Formatea montos expresados en millones de soles."""
-    return f"{valor:,.2f}"
+# Configuración simple de Seaborn para que los gráficos se vean limpios.
+sns.set_theme(style="whitegrid")
 
 
-def tema_plotly(fig, titulo: str):
-    """Aplica un estilo visual uniforme a todos los gráficos de Plotly."""
-    fig.update_layout(
-        title=titulo,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="#171b27",
-        font=dict(color="#f5f7fb"),
-        title_font=dict(size=20, color="#f5f7fb"),
-        margin=dict(l=30, r=30, t=60, b=30),
-        legend=dict(
-            bgcolor="rgba(0,0,0,0)",
-            bordercolor="rgba(255,255,255,0.08)",
-        ),
-    )
-    fig.update_xaxes(
-        gridcolor="rgba(255,255,255,0.08)",
-        zerolinecolor="rgba(255,255,255,0.08)",
-    )
-    fig.update_yaxes(
-        gridcolor="rgba(255,255,255,0.08)",
-        zerolinecolor="rgba(255,255,255,0.08)",
-    )
-    return fig
+# ============================================================
+# 5. SIDEBAR
+# ============================================================
+
+# Definimos el título del panel lateral.
+st.sidebar.header("Secciones")
+
+# Igual que en app2.py, usamos un selectbox para elegir la sección.
+opciones = st.sidebar.selectbox(
+    "Seleccione una sección",
+    ["Resumen general", "Competencia", "Riesgo económico", "Transparencia geográfica"],
+)
 
 
-def tarjeta_grafico(titulo: str, descripcion: str) -> None:
-    """Dibuja el encabezado corto de cada bloque visual."""
-    st.markdown(
-        f"""
-        <div class="chart-card">
-            <div style="font-size:1.05rem; font-weight:700; color:#f5f7fb; margin:0.2rem 0 0 0.3rem;">{titulo}</div>
-            <div class="chart-caption">{descripcion}</div>
-        """,
-        unsafe_allow_html=True,
-    )
+# ============================================================
+# 6. FILTROS
+# ============================================================
+
+st.sidebar.markdown("### Filtros")
+
+# Sacamos los valores únicos de cada variable para los filtros.
+anios = sorted(df["año"].dropna().unique())
+categorias = sorted(df.loc[es_valor_visible(df["categoria"]), "categoria"].dropna().unique())
+departamentos = sorted(df.loc[es_valor_visible(df["departamento"]), "departamento"].dropna().unique())
+
+# Filtro por año.
+selected_anios = st.sidebar.multiselect(
+    "Año",
+    options=anios,
+    default=anios,
+)
+
+# Filtro por categoría.
+selected_categorias = st.sidebar.multiselect(
+    "Categoría",
+    options=categorias,
+    default=categorias,
+)
+
+# Filtro por departamento.
+selected_departamentos = st.sidebar.multiselect(
+    "Departamento",
+    options=departamentos,
+    default=departamentos,
+)
 
 
-def cerrar_tarjeta() -> None:
-    """Cierra el contenedor HTML de la tarjeta visual."""
-    st.markdown("</div>", unsafe_allow_html=True)
+# ============================================================
+# 7. FILTRAR EL DATASET
+# ============================================================
 
+# Aplicamos los filtros seleccionados por el usuario.
+df_filtered = df[
+    (df["año"].isin(selected_anios))
+    & (df["categoria"].isin(selected_categorias))
+    & (df["departamento"].isin(selected_departamentos))
+].copy()
 
-def obtener_score_departamento(dataframe: pd.DataFrame) -> pd.DataFrame:
-    """Calcula un score simple de transparencia por departamento."""
-    score = (
-        dataframe[es_valor_visible(dataframe["departamento"])]
-        .groupby("departamento", as_index=False)
-        .agg(
-            procesos=("ocid", "nunique"),
-            pct_directa=("metodo_simple", lambda s: (s == "Directa").mean() * 100),
-            pct_un_solo_postor=("un_solo_postor", "mean"),
-            monto_total=("monto_adjudicado", "sum"),
-            monto_riesgo=("monto_adjudicado", lambda s: s[dataframe.loc[s.index, "un_solo_postor"]].sum()),
-        )
-    )
-    score["pct_un_solo_postor"] = score["pct_un_solo_postor"] * 100
-    score["pct_monto_riesgo"] = np.where(
-        score["monto_total"] > 0,
-        100 * score["monto_riesgo"] / score["monto_total"],
-        0,
-    )
-    score["score_transparencia"] = 100 - (
-        score["pct_directa"] + score["pct_un_solo_postor"] + score["pct_monto_riesgo"]
-    ) / 3
-    return score
-
-
-def es_valor_visible(serie: pd.Series) -> pd.Series:
-    """Filtra etiquetas de relleno para evitar su aparición en gráficos y filtros."""
-    textos_invalidos = {"sin dato", "no especificado", "nan", ""}
-    return ~serie.astype(str).str.strip().str.lower().isin(textos_invalidos)
-
-
-aplicar_estilos()
-df = cargar_datos()
-proveedores = cargar_proveedores()
-
-# Preparamos la barra lateral con filtros globales.
-with st.sidebar:
-    st.markdown("## 📁 Dashboard OECE")
-    st.caption("Filtros globales del análisis")
-
-    años = sorted(df["año"].dropna().unique().tolist())
-    departamentos = sorted(df.loc[es_valor_visible(df["departamento"]), "departamento"].dropna().unique().tolist())
-    categorias = sorted(df.loc[es_valor_visible(df["categoria"]), "categoria"].dropna().unique().tolist())
-
-    filtro_años = st.multiselect("Año", options=años, default=años)
-    filtro_departamentos = st.multiselect("Departamento", options=departamentos)
-    filtro_categorias = st.multiselect("Categoría", options=categorias)
-
-    st.markdown("---")
-    st.caption(
-        "Para recuperar la vista general del análisis, deje sin seleccionar los filtros de Departamento y Categoría."
-    )
-
-
-# Aplicamos los filtros al DataFrame principal.
-dash = df.copy()
-if filtro_años:
-    dash = dash[dash["año"].isin(filtro_años)]
-if filtro_departamentos:
-    dash = dash[dash["departamento"].isin(filtro_departamentos)]
-if filtro_categorias:
-    dash = dash[dash["categoria"].isin(filtro_categorias)]
-
-# Esta tabla auxiliar solo deja proveedores asociados a la vista filtrada.
-proveedores_dash = proveedores.merge(dash[["ocid"]].drop_duplicates(), on="ocid", how="inner")
-
-if dash.empty:
+# Si no hay datos luego de filtrar, mostramos una advertencia.
+if df_filtered.empty:
     st.warning("No hay datos para los filtros seleccionados.")
     st.stop()
 
-# Calculamos indicadores generales del tablero.
-total_procesos = dash["ocid"].nunique()
-pct_un_postor = dash["un_solo_postor"].mean() * 100
-monto_total = dash["monto_MM"].sum()
-pct_directa = (dash["metodo_simple"] == "Directa").mean() * 100
-monto_riesgo = dash.loc[dash["un_solo_postor"], "monto_MM"].sum()
-departamentos_activos = dash.loc[es_valor_visible(dash["departamento"]), "departamento"].nunique()
 
-# Cabecera principal, más cercana a un tablero ejecutivo.
-st.markdown(
-    f"""
-    <div class="hero-box">
-        <div class="hero-top">Proyecto Final · Dashboard de Contrataciones Públicas</div>
-        <div class="hero-title">Transparencia y Competencia en Compras del Estado Peruano</div>
-        <div class="hero-subtitle">
-            Este tablero sintetiza los procesos de contratación pública correspondientes a los años 2022, 2023 y 2024.
-            La exposición se organiza en cuatro secciones: resumen general, competencia,
-            riesgo económico y transparencia geográfica.
-        </div>
-        <div class="badge-row">
-            <span class="badge-chip">Procesos filtrados: {formatear_entero(total_procesos)}</span>
-            <span class="badge-chip">Monto total: S/ {formatear_mm(monto_total)} MM</span>
-            <span class="badge-chip">% con un solo postor: {pct_un_postor:.2f}%</span>
-            <span class="badge-chip">Departamentos visibles: {formatear_entero(departamentos_activos)}</span>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+# ============================================================
+# 8. INDICADORES GENERALES
+# ============================================================
 
-# Tarjetas KPI de alto nivel.
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("Procesos analizados", formatear_entero(total_procesos))
-col2.metric("% un solo postor", f"{pct_un_postor:.2f}%")
-col3.metric("Monto total MM PEN", formatear_mm(monto_total))
-col4.metric("% contratación directa", f"{pct_directa:.2f}%")
-col5.metric("Monto en riesgo MM", formatear_mm(monto_riesgo))
+# Calculamos cuatro indicadores para mostrar arriba del dashboard.
+total_procesos = df_filtered["ocid"].nunique()
+total_monto = df_filtered["monto_MM"].sum()
+pct_un_postor = df_filtered["un_solo_postor"].mean() * 100
+pct_directa = df_filtered["directa"].mean() * 100
 
-st.markdown(
-    '<div class="section-note">Cada pestaña desarrolla una dimensión específica del análisis y organiza la exposición de resultados ante el jurado.</div>',
-    unsafe_allow_html=True,
-)
+# Mostramos el nombre de la sección elegida.
+st.subheader(f"Sección: {opciones}")
 
-tab1, tab2, tab3, tab4 = st.tabs(
-    ["📘 Resumen", "👥 Competencia", "💰 Riesgo Económico", "🗺️ Transparencia Geográfica"]
-)
+# Igual que en clase, usamos columns para organizar el espacio.
+col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 
-with tab1:
-    st.subheader("Sección 1. Resumen General")
-    st.caption("La primera sección presenta la dimensión del universo analizado, la composición del gasto y la estructura general del sistema observado.")
+with col_kpi1:
+    st.metric("Procesos analizados", f"{total_procesos:,}")
 
-    c1, c2 = st.columns([1.2, 1.8])
+with col_kpi2:
+    st.metric("Monto total (MM PEN)", f"{total_monto:,.2f}")
 
-    with c1:
-        tarjeta_grafico(
-            "Lectura rápida del período",
-            "Estas tarjetas sintetizan el contexto general del análisis antes de revisar el detalle de los gráficos.",
-        )
-        mini1, mini2 = st.columns(2)
-        mini1.metric("Años visibles", formatear_entero(dash["año"].nunique()))
-        mini2.metric("Categorías", formatear_entero(dash["categoria"].nunique()))
-        mini3, mini4 = st.columns(2)
-        mini3.metric("Entidades", formatear_entero(dash["entidad_compradora"].nunique()))
-        mini4.metric(
-            "Proveedores",
-            formatear_entero(proveedores_dash.loc[es_valor_visible(proveedores_dash["proveedor_ganador"]), "proveedor_ganador"].nunique()),
-        )
-        cerrar_tarjeta()
+with col_kpi3:
+    st.metric("% con un solo postor", f"{pct_un_postor:.2f}%")
 
-    with c2:
-        tarjeta_grafico(
-            "Distribución del monto por categoría",
-            "El gráfico identifica en qué categoría se concentra el monto adjudicado dentro del período analizado.",
-        )
+with col_kpi4:
+    st.metric("% contratación directa", f"{pct_directa:.2f}%")
+
+
+# ============================================================
+# 9. SECCION: RESUMEN GENERAL
+# ============================================================
+
+if opciones == "Resumen general":
+    # En esta sección usamos dos filas con dos gráficos cada una.
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write("Monto adjudicado por categoría")
+
         g1 = (
-            dash[es_valor_visible(dash["categoria"])]
-            .groupby("categoria", as_index=False)
-            .agg(monto_MM=("monto_MM", "sum"))
-            .sort_values("monto_MM")
+            df_filtered[es_valor_visible(df_filtered["categoria"])]
+            .groupby("categoria")["monto_MM"]
+            .sum()
+            .reset_index()
+            .sort_values("monto_MM", ascending=False)
         )
-        fig1 = px.bar(
-            g1,
-            x="monto_MM",
-            y="categoria",
-            orientation="h",
-            color="monto_MM",
-            color_continuous_scale=["#2b3350", "#4d7cff", "#8cc8ff"],
-        )
-        tema_plotly(fig1, "Monto adjudicado por categoría")
-        fig1.update_xaxes(title="Millones de PEN")
-        fig1.update_yaxes(title="Categoría")
-        st.plotly_chart(fig1, use_container_width=True)
-        cerrar_tarjeta()
 
-    c3, c4 = st.columns(2)
+        fig, ax = plt.subplots(figsize=(8, 5))
+        g1_plot = g1.set_index("categoria")["monto_MM"].sort_values()
+        g1_plot.plot(kind="barh", color="steelblue", ax=ax)
+        ax.set_title("Monto adjudicado por categoría")
+        ax.set_xlabel("Millones de PEN")
+        ax.set_ylabel("Categoría")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
 
-    with c3:
-        tarjeta_grafico(
-            "Procesos por año",
-            "La serie permite comparar la magnitud de procesos registrados en cada año del período.",
+    with col2:
+        st.write("Procesos por año")
+
+        g2 = (
+            df_filtered.groupby("año")["ocid"]
+            .nunique()
+            .reset_index(name="procesos")
         )
-        g2 = dash.groupby("año", as_index=False).agg(procesos=("ocid", "nunique"))
-        fig2 = px.bar(
-            g2,
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        sns.barplot(data=g2, x="año", y="procesos", color="steelblue", ax=ax)
+        ax.set_title("Cantidad de procesos por año")
+        ax.set_xlabel("Año")
+        ax.set_ylabel("Procesos")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.write("Participación de procesos por método")
+
+        g3 = (
+            df_filtered[es_valor_visible(df_filtered["metodo_simple"])]
+            .groupby("metodo_simple")["ocid"]
+            .nunique()
+            .reset_index(name="procesos")
+        )
+
+        fig, ax = plt.subplots(figsize=(7, 7))
+        ax.pie(g3["procesos"], labels=g3["metodo_simple"], autopct="%1.1f%%", startangle=90)
+        ax.set_title("Participación de procesos por método")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    with col4:
+        st.write("Monto adjudicado por año y categoría")
+
+        g4 = (
+            df_filtered[es_valor_visible(df_filtered["categoria"])]
+            .groupby(["año", "categoria"])["monto_MM"]
+            .sum()
+            .reset_index()
+        )
+
+        fig = px.bar(
+            g4,
             x="año",
-            y="procesos",
-            text="procesos",
-            color="procesos",
-            color_continuous_scale=["#203354", "#4d7cff", "#8cc8ff"],
+            y="monto_MM",
+            color="categoria",
+            barmode="group",
+            title="Monto adjudicado por año y categoría",
+            labels={"año": "Año", "monto_MM": "Millones de PEN", "categoria": "Categoría"},
+            color_discrete_map={"Bienes": "#61d6a3", "Servicios": "#6ea8fe", "Obras": "#ff6658"},
         )
-        fig2.update_traces(textposition="outside")
-        tema_plotly(fig2, "Cantidad de procesos por año")
-        st.plotly_chart(fig2, use_container_width=True)
-        cerrar_tarjeta()
 
-    with c4:
-        tarjeta_grafico(
-            "Participación por método",
-            "La composición porcentual permite distinguir el peso relativo de cada modalidad de contratación.",
+        st.plotly_chart(fig, use_container_width=True)
+
+
+# ============================================================
+# 10. SECCION: COMPETENCIA
+# ============================================================
+
+elif opciones == "Competencia":
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write("Distribución del número de postores")
+
+        g5 = df_filtered[df_filtered["n_postores"] > 0].copy()
+        g5["n_postores_grafico"] = g5["n_postores"].clip(upper=10)
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.hist(g5["n_postores_grafico"], bins=10, color="salmon", edgecolor="black")
+        ax.set_title("Distribución del número de postores por proceso")
+        ax.set_xlabel("Número de postores (10 representa 10 o más)")
+        ax.set_ylabel("Frecuencia")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    with col2:
+        st.write("Porcentaje de procesos con un solo postor por año")
+
+        g6 = (
+            df_filtered.groupby("año")["un_solo_postor"]
+            .mean()
+            .mul(100)
+            .reset_index(name="porcentaje")
         )
-        g3 = dash[es_valor_visible(dash["metodo_simple"])].groupby("metodo_simple", as_index=False).agg(procesos=("ocid", "nunique"))
-        fig3 = px.pie(
-            g3,
-            names="metodo_simple",
-            values="procesos",
-            hole=0.55,
-            color="metodo_simple",
-            color_discrete_map={
-                "Competitivo": "#61d6a3",
-                "Directa": "#ff6658",
-                "Selectivo": "#6ea8fe",
-            },
-        )
-        tema_plotly(fig3, "Participación de procesos por método")
-        st.plotly_chart(fig3, use_container_width=True)
-        cerrar_tarjeta()
 
-    tarjeta_grafico(
-        "Monto adjudicado por año y categoría",
-        "La comparación cruzada entre año y categoría permite observar cambios en la composición del gasto adjudicado a lo largo del período.",
-    )
-    g4_resumen = (
-        dash[es_valor_visible(dash["categoria"])]
-        .groupby(["año", "categoria"], as_index=False)
-        .agg(monto_MM=("monto_MM", "sum"))
-    )
-    fig4_resumen = px.bar(
-        g4_resumen,
-        x="año",
-        y="monto_MM",
-        color="categoria",
-        barmode="group",
-        color_discrete_map={"Bienes": "#61d6a3", "Servicios": "#6ea8fe", "Obras": "#ff6658"},
-    )
-    tema_plotly(fig4_resumen, "Monto adjudicado por año y categoría")
-    fig4_resumen.update_yaxes(title="Monto adjudicado (MM PEN)")
-    st.plotly_chart(fig4_resumen, use_container_width=True)
-    cerrar_tarjeta()
+        fig, ax = plt.subplots(figsize=(8, 5))
+        g6_plot = g6.set_index("año")["porcentaje"]
+        g6_plot.plot(kind="bar", color="indianred", ax=ax)
+        ax.set_title("Porcentaje de procesos con un solo postor por año")
+        ax.set_xlabel("Año")
+        ax.set_ylabel("Porcentaje")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
 
-with tab2:
-    st.subheader("Sección 2. Competencia")
-    st.caption("La segunda sección examina la intensidad competitiva de los procesos y la localización de señales de menor concurrencia.")
+    col3, col4 = st.columns(2)
 
-    c1, c2 = st.columns(2)
+    with col3:
+        st.write("Top 15 departamentos con un solo postor")
 
-    with c1:
-        tarjeta_grafico(
-            "Distribución del número de postores",
-            "La distribución muestra si predomina una participación reducida o una concurrencia más amplia entre postores.",
-        )
-        g4 = dash.loc[dash["n_postores"] > 0, "n_postores"].dropna().clip(upper=10)
-        fig4 = px.histogram(g4, nbins=10, color_discrete_sequence=["#6ea8fe"])
-        tema_plotly(fig4, "Número de postores por proceso")
-        fig4.update_xaxes(title="Número de postores (10 representa 10 o más)")
-        fig4.update_yaxes(title="Cantidad de procesos")
-        st.plotly_chart(fig4, use_container_width=True)
-        cerrar_tarjeta()
-
-    with c2:
-        tarjeta_grafico(
-            "Top departamentos con un solo postor",
-            "El ranking territorial evidencia dónde se concentra la mayor cantidad de procesos con un único postor.",
-        )
-        g5 = (
-            dash[es_valor_visible(dash["departamento"])]
-            .groupby("departamento", as_index=False)
-            .agg(casos_un_postor=("un_solo_postor", "sum"))
-            .sort_values("casos_un_postor", ascending=False)
+        g7 = (
+            df_filtered[
+                (df_filtered["un_solo_postor"] == True)
+                & (es_valor_visible(df_filtered["departamento"]))
+            ]
+            .groupby("departamento")["ocid"]
+            .nunique()
+            .reset_index(name="procesos")
+            .sort_values("procesos", ascending=False)
             .head(15)
         )
-        fig5 = px.bar(
-            g5,
-            x="casos_un_postor",
-            y="departamento",
-            orientation="h",
-            color="casos_un_postor",
-            color_continuous_scale=["#4b1f22", "#ff6658", "#ffae8d"],
-        )
-        fig5.update_yaxes(categoryorder="total ascending")
-        tema_plotly(fig5, "Departamentos con más casos de un solo postor")
-        st.plotly_chart(fig5, use_container_width=True)
-        cerrar_tarjeta()
 
-    c3, c4 = st.columns(2)
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.barplot(data=g7, x="procesos", y="departamento", color="darkorange", ax=ax)
+        ax.set_title("Top 15 departamentos con un solo postor")
+        ax.set_xlabel("Procesos")
+        ax.set_ylabel("Departamento")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
 
-    with c3:
-        tarjeta_grafico(
-            "Método por categoría",
-            "La comparación permite identificar qué categorías se apoyan más en contratación directa y cuáles muestran mayor competencia.",
-        )
-        g6_base = dash[es_valor_visible(dash["categoria"]) & es_valor_visible(dash["metodo_simple"])].copy()
-        g6 = pd.crosstab(g6_base["categoria"], g6_base["metodo_simple"], normalize="index").reset_index()
-        g6 = g6.melt(id_vars="categoria", var_name="metodo_simple", value_name="porcentaje")
-        g6["porcentaje"] = g6["porcentaje"] * 100
-        fig6 = px.bar(
-            g6,
-            x="categoria",
-            y="porcentaje",
-            color="metodo_simple",
-            barmode="stack",
-            color_discrete_map={
-                "Competitivo": "#61d6a3",
-                "Directa": "#ff6658",
-                "Selectivo": "#6ea8fe",
-            },
-        )
-        tema_plotly(fig6, "Composición del método de contratación por categoría")
-        fig6.update_yaxes(title="% dentro de cada categoría")
-        st.plotly_chart(fig6, use_container_width=True)
-        cerrar_tarjeta()
+    with col4:
+        st.write("Distribución de postores por categoría")
 
-    with c4:
-        tarjeta_grafico(
-            "Caja de postores por categoría",
-            "El diagrama resume mediana, dispersión y valores extremos de la competencia observada en cada categoría.",
-        )
-        g7 = dash[dash["n_postores"].notna()].copy()
-        g7["n_postores"] = g7["n_postores"].clip(upper=15)
-        fig7 = px.box(
-            g7,
-            x="categoria",
-            y="n_postores",
-            points=False,
-            color="categoria",
-            color_discrete_sequence=["#61d6a3", "#6ea8fe", "#ff6658"],
-        )
-        tema_plotly(fig7, "Distribución de postores por categoría")
-        st.plotly_chart(fig7, use_container_width=True)
-        cerrar_tarjeta()
+        g8 = df_filtered[df_filtered["n_postores"] > 0].copy()
 
-with tab3:
-    st.subheader("Sección 3. Riesgo Económico")
-    st.caption("La tercera sección traduce las señales de competencia en montos, con el fin de estimar la exposición económica asociada al riesgo.")
+        fig, ax = plt.subplots(figsize=(8, 5))
+        sns.boxplot(data=g8, x="categoria", y="n_postores", showfliers=False, ax=ax)
+        ax.set_title("Distribución de postores por categoría")
+        ax.set_xlabel("Categoría")
+        ax.set_ylabel("Número de postores")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
 
-    c1, c2 = st.columns(2)
 
-    with c1:
-        tarjeta_grafico(
-            "Monto en riesgo vs monto competitivo",
-            "La separación entre gasto en riesgo y gasto competitivo permite cuantificar la exposición económica vinculada a baja competencia.",
-        )
-        g8 = dash.groupby("año", as_index=False).agg(
-            monto_total=("monto_adjudicado", "sum"),
-            monto_riesgo=("monto_adjudicado", lambda s: s[dash.loc[s.index, "un_solo_postor"]].sum()),
-        )
-        g8["monto_competitivo"] = g8["monto_total"] - g8["monto_riesgo"]
-        g8["monto_riesgo_mm"] = g8["monto_riesgo"] / 1_000_000
-        g8["monto_competitivo_mm"] = g8["monto_competitivo"] / 1_000_000
-        g8_plot = g8.melt(
-            id_vars="año",
-            value_vars=["monto_riesgo_mm", "monto_competitivo_mm"],
-            var_name="tipo_monto",
-            value_name="monto_mm",
-        )
-        fig8 = px.bar(
-            g8_plot,
-            x="año",
-            y="monto_mm",
-            color="tipo_monto",
-            barmode="group",
-            color_discrete_map={
-                "monto_riesgo_mm": "#ff6658",
-                "monto_competitivo_mm": "#61d6a3",
-            },
-        )
-        tema_plotly(fig8, "Monto en riesgo frente a monto competitivo")
-        st.plotly_chart(fig8, use_container_width=True)
-        cerrar_tarjeta()
+# ============================================================
+# 11. SECCION: RIESGO ECONOMICO
+# ============================================================
 
-    with c2:
-        tarjeta_grafico(
-            "Evolución anual del gasto por categoría",
-            "La evolución anual del gasto permite identificar cambios en la prioridad relativa de cada categoría de compra.",
+elif opciones == "Riesgo económico":
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write("Monto en riesgo frente a monto competitivo por año")
+
+        g9 = (
+            df_filtered.groupby("año", as_index=False)
+            .agg(
+                monto_total=("monto_adjudicado", "sum"),
+                monto_riesgo=("monto_adjudicado", lambda s: s[df_filtered.loc[s.index, "un_solo_postor"]].sum()),
+            )
         )
-        g9 = dash.groupby(["año", "categoria"], as_index=False).agg(monto_MM=("monto_MM", "sum"))
-        fig9 = px.line(
-            g9,
+
+        g9["monto_competitivo"] = g9["monto_total"] - g9["monto_riesgo"]
+        g9[["monto_riesgo", "monto_competitivo"]] = (
+            g9[["monto_riesgo", "monto_competitivo"]] / 1_000_000
+        )
+
+        # Este gráfico mantiene la misma estructura del notebook:
+        # dos barras por año construidas con Matplotlib.
+        x = np.arange(len(g9))
+        width = 0.35
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.bar(x - width / 2, g9["monto_riesgo"], width=width, label="Monto en riesgo")
+        ax.bar(x + width / 2, g9["monto_competitivo"], width=width, label="Monto competitivo")
+        ax.set_xticks(x)
+        ax.set_xticklabels(g9["año"].astype(str))
+        ax.set_title("Monto en riesgo frente a monto competitivo por año")
+        ax.set_xlabel("Año")
+        ax.set_ylabel("Millones de PEN")
+        ax.legend()
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    with col2:
+        st.write("Evolución del gasto por categoría")
+
+        g10 = (
+            df_filtered.groupby(["año", "categoria"])["monto_MM"]
+            .sum()
+            .reset_index()
+        )
+
+        fig = px.line(
+            g10,
             x="año",
             y="monto_MM",
             color="categoria",
             markers=True,
-            color_discrete_map={
-                "Bienes": "#61d6a3",
-                "Servicios": "#6ea8fe",
-                "Obras": "#ff6658",
-            },
+            title="Evolución del gasto por categoría",
+            labels={"año": "Año", "monto_MM": "Millones de PEN", "categoria": "Categoría"},
+            color_discrete_map={"Bienes": "#636efa", "Obras": "#EF553B", "Servicios": "#00cc96"},
         )
-        tema_plotly(fig9, "Evolución del gasto por categoría")
-        st.plotly_chart(fig9, use_container_width=True)
-        cerrar_tarjeta()
 
-    c3, c4 = st.columns(2)
+        st.plotly_chart(fig, use_container_width=True)
 
-    with c3:
-        tarjeta_grafico(
-            "Entidades con más contrataciones directas",
-            "El ranking institucional destaca las entidades que concentran mayor número de procesos directos en la selección aplicada.",
-        )
-        g10 = (
-            dash[dash["metodo_simple"] == "Directa"]
-            .groupby("entidad_compradora", as_index=False)
-            .agg(n_directas=("ocid", "nunique"))
-            .sort_values("n_directas", ascending=False)
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.write("Top 15 entidades con más contrataciones directas")
+
+        g11 = (
+            df_filtered[
+                (df_filtered["directa"] == True)
+                & (es_valor_visible(df_filtered["entidad_compradora"]))
+            ]
+            .groupby("entidad_compradora")["ocid"]
+            .nunique()
+            .reset_index(name="procesos")
+            .sort_values("procesos", ascending=False)
             .head(15)
         )
-        fig10 = px.bar(
-            g10,
-            x="n_directas",
-            y="entidad_compradora",
-            orientation="h",
-            color="n_directas",
-            color_continuous_scale=["#1d3a2b", "#61d6a3", "#9bf3cb"],
-        )
-        fig10.update_yaxes(categoryorder="total ascending")
-        tema_plotly(fig10, "Top entidades con más contratación directa")
-        st.plotly_chart(fig10, use_container_width=True)
-        cerrar_tarjeta()
 
-    with c4:
-        tarjeta_grafico(
-            "Monto adjudicado vs número de postores",
-            "La nube de puntos permite observar si los procesos de mayor monto coinciden con menores niveles de competencia.",
-        )
-        g11 = dash[(dash["monto_adjudicado"] > 0) & (dash["n_postores"].notna())].copy()
-        if len(g11) > 5000:
-            g11 = g11.sample(5000, random_state=42)
-        fig11 = px.scatter(
-            g11,
+        fig, ax = plt.subplots(figsize=(8, 6))
+        g11_plot = g11.set_index("entidad_compradora")["procesos"].sort_values()
+        g11_plot.plot(kind="barh", color="slateblue", ax=ax)
+        ax.set_title("Top 15 entidades con más contrataciones directas")
+        ax.set_xlabel("Procesos directos")
+        ax.set_ylabel("Entidad compradora")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    with col4:
+        st.write("Monto adjudicado frente a número de postores")
+
+        g12 = df_filtered[
+            ["ocid", "n_postores", "monto_adjudicado", "un_solo_postor", "categoria", "departamento"]
+        ].dropna().copy()
+
+        fig = px.scatter(
+            g12,
             x="n_postores",
             y="monto_adjudicado",
             color="un_solo_postor",
-            hover_data=["ocid", "categoria", "departamento"],
-            color_discrete_map={True: "#ff6658", False: "#61d6a3"},
+            title="Monto adjudicado frente a número de postores",
+            labels={"n_postores": "Número de postores", "monto_adjudicado": "Monto adjudicado (PEN)"},
+            opacity=0.5,
+            color_discrete_map={False: "#636EFA", True: "#EF553B"},
         )
-        tema_plotly(fig11, "Monto adjudicado y competencia")
-        st.plotly_chart(fig11, use_container_width=True)
-        cerrar_tarjeta()
 
-with tab4:
-    st.subheader("Sección 4. Transparencia Geográfica")
-    st.caption("La cuarta sección traslada el análisis al territorio y muestra la distribución espacial de los principales indicadores de riesgo.")
+        st.plotly_chart(fig, use_container_width=True)
 
-    c1, c2 = st.columns(2)
 
-    with c1:
-        tarjeta_grafico(
-            "Mapa de calor por departamento y categoría",
-            "La intensidad del color representa un mayor porcentaje de procesos con un solo postor en la combinación analizada.",
-        )
+# ============================================================
+# 12. SECCION: TRANSPARENCIA GEOGRAFICA
+# ============================================================
+
+elif opciones == "Transparencia geográfica":
+    col1, col2 = st.columns([1, 1.35])
+
+    with col1:
+        st.write("Riesgo por departamento y categoría")
+
         top_dptos = (
-            dash[es_valor_visible(dash["departamento"])]
+            df_filtered[es_valor_visible(df_filtered["departamento"])]
             .groupby("departamento")["ocid"]
             .nunique()
             .sort_values(ascending=False)
             .head(15)
             .index
         )
-        heat = (
-            dash[dash["departamento"].isin(top_dptos)]
+
+        g13 = (
+            df_filtered[
+                df_filtered["departamento"].isin(top_dptos)
+                & es_valor_visible(df_filtered["categoria"])
+            ]
             .groupby(["departamento", "categoria"])["un_solo_postor"]
             .mean()
             .mul(100)
             .reset_index()
-            .pivot(index="departamento", columns="categoria", values="un_solo_postor")
+        )
+
+        g13_heat = (
+            g13.pivot(index="departamento", columns="categoria", values="un_solo_postor")
             .fillna(0)
         )
-        fig12 = px.imshow(
-            heat,
-            text_auto=".1f",
-            color_continuous_scale=["#1a1f2d", "#6f2630", "#ff6658"],
-            aspect="auto",
-        )
-        tema_plotly(fig12, "Riesgo territorial por categoría")
-        st.plotly_chart(fig12, use_container_width=True)
-        cerrar_tarjeta()
+        fig, ax = plt.subplots(figsize=(11, 8))
+        sns.heatmap(g13_heat, cmap="YlOrRd", annot=True, fmt=".1f", ax=ax)
+        ax.set_title("Riesgo por departamento y categoría (%)")
+        ax.set_xlabel("Categoría")
+        ax.set_ylabel("Departamento")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
 
-    with c2:
-        tarjeta_grafico(
-            "Evolución mensual de directas vs competitivas",
-            "La tendencia mensual permite observar la trayectoria comparada entre procesos directos y procesos competitivos.",
-        )
-        g12 = (
-            dash[dash["metodo_simple"].isin(["Competitivo", "Directa"]) & dash["mes_reporte"].notna()]
-            .groupby(["mes_reporte", "metodo_simple"], as_index=False)
-            .agg(procesos=("ocid", "nunique"))
-        )
-        if not g12.empty:
-            g12 = g12.sort_values("mes_reporte")
-            fig13 = px.line(
-                g12,
-                x="mes_reporte",
-                y="procesos",
-                color="metodo_simple",
-                markers=True,
-                color_discrete_map={"Competitivo": "#61d6a3", "Directa": "#ff6658"},
-            )
-            tema_plotly(fig13, "Tendencia mensual por método")
-            st.plotly_chart(fig13, use_container_width=True)
-        cerrar_tarjeta()
+    with col2:
+        st.write("Evolución mensual de directas frente a competitivas")
 
-    c3, c4 = st.columns(2)
-
-    with c3:
-        tarjeta_grafico(
-            "Top proveedores ganadores repetidos",
-            "El ranking resume el grado de concentración de adjudicaciones en un conjunto reducido de proveedores.",
+        g14 = (
+            df_filtered[
+                df_filtered["metodo_simple"].isin(["Competitivo", "Directa"])
+                & df_filtered["mes_reporte"].notna()
+            ]
+            .groupby(["mes_reporte", "metodo_simple"])["ocid"]
+            .nunique()
+            .reset_index(name="procesos")
+            .sort_values("mes_reporte")
         )
-        g13 = (
-            proveedores_dash[es_valor_visible(proveedores_dash["proveedor_ganador"])]
-            .groupby("proveedor_ganador", as_index=False)
-            .agg(procesos_ganados=("ocid", "nunique"))
+
+        # Convertimos el periodo mensual a fecha para que el eje X
+        # quede legible y no imprima todos los meses como texto.
+        g14["mes_reporte"] = pd.to_datetime(g14["mes_reporte"], errors="coerce")
+        g14 = g14.dropna(subset=["mes_reporte"]).sort_values("mes_reporte")
+
+        fig, ax = plt.subplots(figsize=(14, 6))
+        sns.lineplot(
+            data=g14,
+            x="mes_reporte",
+            y="procesos",
+            hue="metodo_simple",
+            marker="o",
+            hue_order=["Competitivo", "Directa"],
+            ax=ax,
+        )
+        ax.set_title("Evolución mensual de contrataciones directas y competitivas")
+        ax.set_xlabel("Periodo mensual del reporte")
+        ax.set_ylabel("Procesos")
+        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=4))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+        ax.grid(True, alpha=0.3)
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=9)
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.write("Top 15 proveedores ganadores repetidos")
+
+        g15 = (
+            df_filtered[es_valor_visible(df_filtered["proveedor_ganador"])]
+            .groupby("proveedor_ganador")["ocid"]
+            .nunique()
+            .reset_index(name="procesos_ganados")
             .sort_values("procesos_ganados", ascending=False)
             .head(15)
         )
-        fig14 = px.bar(
-            g13,
-            x="procesos_ganados",
-            y="proveedor_ganador",
-            orientation="h",
-            color="procesos_ganados",
-            color_continuous_scale=["#321c1c", "#ff6658", "#ffb19c"],
-        )
-        fig14.update_yaxes(categoryorder="total ascending")
-        tema_plotly(fig14, "Proveedores con más procesos ganados")
-        st.plotly_chart(fig14, use_container_width=True)
-        cerrar_tarjeta()
 
-    with c4:
-        tarjeta_grafico(
-            "Score de transparencia por departamento",
-            "El gráfico sintetiza en una sola escala el peso de la contratación directa, la presencia de un solo postor y la proporción del monto en riesgo.",
+        fig, ax = plt.subplots(figsize=(8, 6))
+        g15_plot = g15.set_index("proveedor_ganador")["procesos_ganados"].sort_values()
+        g15_plot.plot(kind="barh", color="teal", ax=ax)
+        ax.set_title("Top 15 proveedores ganadores repetidos")
+        ax.set_xlabel("Procesos adjudicados")
+        ax.set_ylabel("Proveedor ganador")
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+
+    with col4:
+        st.write("Score de transparencia por departamento")
+
+        g16 = (
+            df_filtered[es_valor_visible(df_filtered["departamento"])]
+            .groupby("departamento", as_index=False)
+            .agg(
+                pct_directa=("directa", "mean"),
+                pct_un_solo_postor=("un_solo_postor", "mean"),
+                monto_total=("monto_adjudicado", "sum"),
+                monto_riesgo=("monto_adjudicado", lambda s: s[df_filtered.loc[s.index, "un_solo_postor"]].sum()),
+            )
         )
-        score = obtener_score_departamento(dash).sort_values("score_transparencia", ascending=False).head(15)
-        score = score.sort_values("score_transparencia")
-        fig15 = px.bar(
-            score,
+
+        g16["pct_directa"] = g16["pct_directa"] * 100
+        g16["pct_un_solo_postor"] = g16["pct_un_solo_postor"] * 100
+        g16["pct_monto_riesgo"] = np.where(
+            g16["monto_total"] > 0,
+            (g16["monto_riesgo"] / g16["monto_total"]) * 100,
+            0,
+        )
+
+        g16["score_transparencia"] = 100 - (
+            (g16["pct_directa"] + g16["pct_un_solo_postor"] + g16["pct_monto_riesgo"]) / 3
+        )
+
+        g16 = g16.sort_values("score_transparencia", ascending=False).head(15)
+        g16 = g16.sort_values("score_transparencia", ascending=True)
+
+        fig = px.bar(
+            g16,
             x="score_transparencia",
             y="departamento",
             orientation="h",
             text="score_transparencia",
+            title="Score de transparencia por departamento",
+            labels={"score_transparencia": "Score de transparencia", "departamento": "Departamento"},
             color="score_transparencia",
             color_continuous_scale=["#2b3350", "#6ea8fe", "#ff6658"],
         )
-        fig15.update_traces(texttemplate="%{text:.2f}", textposition="outside")
-        tema_plotly(fig15, "Score de transparencia por departamento")
-        fig15.update_xaxes(title="Score de transparencia")
-        fig15.update_yaxes(title="Departamento")
-        st.plotly_chart(fig15, use_container_width=True)
-        cerrar_tarjeta()
+
+        fig.update_traces(texttemplate="%{text:.2f}", textposition="outside")
+        st.plotly_chart(fig, use_container_width=True)
